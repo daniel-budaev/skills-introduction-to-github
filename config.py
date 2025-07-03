@@ -47,3 +47,7 @@ PWM_FREQUENCY = 1000       # Hz
 # Display settings
 SHOW_DEBUG_WINDOWS = True  # Show camera feed and mask windows
 SHOW_DETECTION_INFO = True # Show ball detection information on screen
+
+# Audio settings
+ENABLE_AUDIO = True        # Enable beep sounds when no ball is found
+BEEP_INTERVAL = 3.0        # Seconds between beep sounds

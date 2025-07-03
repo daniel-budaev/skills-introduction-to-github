@@ -9,6 +9,7 @@ This project provides a complete solution for a Jetson Nano-based robot that can
 - **Motor Control**: PWM-based differential drive control for smooth movement
 - **Configurable Parameters**: Easy-to-adjust settings for different environments and hardware
 - **Color Calibration Tool**: Interactive tool to tune orange detection for your lighting conditions
+- **Audio Feedback**: Plays beep sounds when no orange ball is found
 - **Simulation Mode**: Test the code without GPIO hardware
 
 ## Hardware Requirements
@@ -108,6 +109,10 @@ SEARCH_SPEED = 0.3      # Search rotation speed
 # Ball detection - adjust based on distance and ball size
 TARGET_BALL_AREA = 15000  # Stop when ball reaches this size
 MIN_BALL_AREA = 500       # Minimum size to detect as ball
+
+# Audio settings
+ENABLE_AUDIO = True       # Enable beep sounds when no ball is found
+BEEP_INTERVAL = 3.0       # Seconds between beep sounds
 ```
 
 ## Usage
@@ -202,6 +207,13 @@ python3 -c "import cv2; cap = cv2.VideoCapture(0); print('Camera OK' if cap.read
 - Verify power supply voltage
 - Test motors individually
 - Adjust speed values in config
+
+### Audio Issues
+- Install audio utilities: `sudo apt install beep alsa-utils pulseaudio`
+- Test system beep: `beep` (should produce a sound)
+- Check audio output: `speaker-test -t sine -f 1000 -l 1`
+- Disable audio in config if not needed: `ENABLE_AUDIO = False`
+- Adjust beep frequency: `BEEP_INTERVAL = 5.0` (5 seconds between beeps)
 
 ## Customization
 

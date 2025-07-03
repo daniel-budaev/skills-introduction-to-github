@@ -38,7 +38,10 @@ sudo apt install -y \
     libx264-dev \
     libgtk-3-dev \
     libatlas-base-dev \
-    gfortran
+    gfortran \
+    beep \
+    alsa-utils \
+    pulseaudio
 
 # Install Python packages
 echo "Installing Python packages..."
@@ -53,6 +56,7 @@ sudo usermod -a -G video $USER
 echo "Making Python scripts executable..."
 chmod +x orange_ball_robot.py
 chmod +x color_calibration.py
+chmod +x test_audio.py
 
 # Create desktop shortcut for easy access
 echo "Creating desktop shortcuts..."
@@ -80,8 +84,21 @@ Terminal=true
 Categories=Application;
 EOF
 
+cat > ~/Desktop/test_audio.desktop << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Audio Test
+Comment=Test beep functionality for robot
+Exec=python3 $(pwd)/test_audio.py
+Icon=audio-speakers
+Terminal=true
+Categories=Application;
+EOF
+
 chmod +x ~/Desktop/orange_ball_robot.desktop
 chmod +x ~/Desktop/color_calibration.desktop
+chmod +x ~/Desktop/test_audio.desktop
 
 echo ""
 echo "========================================="
@@ -90,13 +107,15 @@ echo "========================================="
 echo ""
 echo "Next steps:"
 echo "1. Reboot the system to apply camera permissions"
-echo "2. Run 'python3 color_calibration.py' to calibrate orange detection"
-echo "3. Adjust motor pin configuration in config.py for your robot"
-echo "4. Run 'python3 orange_ball_robot.py' to start the robot"
+echo "2. Run 'python3 test_audio.py' to test audio functionality"
+echo "3. Run 'python3 color_calibration.py' to calibrate orange detection"
+echo "4. Adjust motor pin configuration in config.py for your robot"
+echo "5. Run 'python3 orange_ball_robot.py' to start the robot"
 echo ""
 echo "Files created:"
 echo "- orange_ball_robot.py (main robot control)"
 echo "- color_calibration.py (color tuning tool)"
+echo "- test_audio.py (audio beep testing)"
 echo "- config.py (configuration settings)"
 echo "- requirements.txt (Python dependencies)"
 echo ""

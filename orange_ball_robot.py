@@ -10,6 +10,8 @@ import numpy as np
 import time
 import threading
 from enum import Enum
+import subprocess
+import os
 
 try:
     import RPi.GPIO as GPIO
@@ -93,6 +95,11 @@ class OrangeBallRobot:
         self.last_ball_center = None
         self.turn_start_time = None
         self.search_start_time = None
+        self.last_beep_time = None
+        
+        # Audio settings
+        self.beep_interval = config.BEEP_INTERVAL if config else 3.0  # Seconds between beeps
+        self.enable_audio = config.ENABLE_AUDIO if config else True
         
     def setup_gpio(self):
         """Initialize GPIO pins for motor control"""
@@ -186,6 +193,38 @@ class OrangeBallRobot:
         self.left_pwm.ChangeDutyCycle(speed * 100)
         self.right_pwm.ChangeDutyCycle(speed * 100)
         
+    def play_beep(self):
+        """Play a beep sound to indicate no ball found"""
+        if not self.enable_audio:
+            return
+            
+        current_time = time.time()
+        if self.last_beep_time is None or (current_time - self.last_beep_time) >= self.beep_interval:
+            self.last_beep_time = current_time
+            
+            # Try multiple methods to play beep sound
+            try:
+                # Method 1: Use system beep command
+                subprocess.run(['beep'], check=False, capture_output=True, timeout=1)
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                try:
+                    # Method 2: Use speaker-test for a short beep
+                    subprocess.run(['speaker-test', '-t', 'sine', '-f', '1000', '-l', '1'], 
+                                 timeout=1, check=False, capture_output=True)
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    try:
+                        # Method 3: Use aplay with generated beep
+                        subprocess.run(['bash', '-c', 
+                                      'echo -e "\\a" | aplay'], 
+                                     timeout=1, check=False, capture_output=True)
+                    except (FileNotFoundError, subprocess.TimeoutExpired):
+                        try:
+                            # Method 4: Use printf bell character
+                            os.system('printf "\\a"')
+                        except:
+                            # Method 5: Print message if no audio available
+                            print("🔊 BEEP! No orange ball found")
+        
     def detect_orange_ball(self, frame):
         """Detect orange ball in the frame and return its center and area"""
         # Convert to HSV color space
@@ -252,6 +291,9 @@ class OrangeBallRobot:
         # Turn left slowly to search
         self.turn_left(speed=self.search_speed)
         
+        # Play beep sound to indicate no ball found
+        self.play_beep()
+        
         # If we've been searching for too long, stop and wait
         if time.time() - self.search_start_time > self.search_timeout:
             self.stop_motors()
@@ -306,6 +348,7 @@ class OrangeBallRobot:
                 elif self.state == RobotState.MOVING_TO_BALL:
                     if ball_center is None:
                         print("Lost ball, searching again...")
+                        self.play_beep()  # Beep when ball is lost
                         self.state = RobotState.SEARCHING
                         continue
                         
