@@ -15,6 +15,10 @@ except ImportError as exc:
 
 # ---------- Utilities ----------
 
+def is_valid_las(las_obj: Optional[object]) -> bool:
+    return isinstance(las_obj, lasio.LASFile) and getattr(las_obj, "curves", None) is not None
+
+
 def read_las_from_path(path: str) -> lasio.LASFile:
     if not os.path.exists(path):
         raise FileNotFoundError(f"File not found: {path}")
@@ -26,8 +30,10 @@ def read_las_from_bytes(file_bytes: bytes) -> lasio.LASFile:
     return lasio.read(buffer)
 
 
-def get_depth_info(las: lasio.LASFile) -> Tuple[Optional[str], Optional[str]]:
+def get_depth_info(las: Optional[lasio.LASFile]) -> Tuple[Optional[str], Optional[str]]:
     """Return (mnemonic, unit) for the depth/index curve if available."""
+    if not is_valid_las(las):
+        return None, None
     depth_mnemonic = None
     depth_unit = None
     try:
@@ -39,16 +45,18 @@ def get_depth_info(las: lasio.LASFile) -> Tuple[Optional[str], Optional[str]]:
         pass
 
     if depth_mnemonic is None:
-        # Best-effort: first curve is often depth
-        if len(las.curves) > 0:
+        if getattr(las, "curves", None) is not None and len(las.curves) > 0:
             depth_mnemonic = las.curves[0].mnemonic
             depth_unit = las.curves[0].unit
 
     return depth_mnemonic, depth_unit
 
 
-def las_to_metadata_frames(las: lasio.LASFile) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def las_to_metadata_frames(las: Optional[lasio.LASFile]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Return (well_df, params_df) dataframes for editing."""
+    if not is_valid_las(las):
+        return pd.DataFrame(columns=["mnemonic", "unit", "value", "descr"]), pd.DataFrame(columns=["mnemonic", "unit", "value", "descr"])
+
     well_rows = []
     for item in las.well:
         well_rows.append({
@@ -77,6 +85,8 @@ def apply_metadata_edits(las: lasio.LASFile, well_df: pd.DataFrame, params_df: p
 
     Allows adding new rows and editing existing ones.
     """
+    if not is_valid_las(las):
+        raise ValueError("No valid LAS object loaded.")
     # Update Well
     existing_well_keys = {item.mnemonic for item in las.well}
     seen_well_keys = set()
@@ -125,7 +135,9 @@ def apply_metadata_edits(las: lasio.LASFile, well_df: pd.DataFrame, params_df: p
     #     del las.params[mnem]
 
 
-def curves_metadata_to_df(las: lasio.LASFile) -> pd.DataFrame:
+def curves_metadata_to_df(las: Optional[lasio.LASFile]) -> pd.DataFrame:
+    if not is_valid_las(las):
+        return pd.DataFrame(columns=["order", "mnemonic", "unit", "descr"])
     rows = []
     for idx, c in enumerate(las.curves):
         rows.append({
@@ -139,6 +151,8 @@ def curves_metadata_to_df(las: lasio.LASFile) -> pd.DataFrame:
 
 def apply_curves_metadata_edits(las: lasio.LASFile, edited_df: pd.DataFrame) -> None:
     """Apply edits to curves metadata, including optional mnemonic rename and order change."""
+    if not is_valid_las(las):
+        raise ValueError("No valid LAS object loaded.")
     # Build mapping from original order to new state
     edited_df = edited_df.copy()
     if "order" not in edited_df.columns:
@@ -191,7 +205,9 @@ def apply_curves_metadata_edits(las: lasio.LASFile, edited_df: pd.DataFrame) -> 
         las.set_data(new_matrix)
 
 
-def las_to_dataframe(las: lasio.LASFile) -> pd.DataFrame:
+def las_to_dataframe(las: Optional[lasio.LASFile]) -> pd.DataFrame:
+    if not is_valid_las(las):
+        return pd.DataFrame()
     try:
         df = las.df()
         # Ensure index name is depth mnemonic for clarity
@@ -203,7 +219,7 @@ def las_to_dataframe(las: lasio.LASFile) -> pd.DataFrame:
         # Fallback constructing manually from las.data
         if getattr(las, "data", None) is None:
             return pd.DataFrame()
-        columns = [c.mnemonic for c in las.curves]
+        columns = [c.mnemonic for c in (las.curves or [])]
         arr = las.data
         df = pd.DataFrame(arr, columns=columns)
         # If first column is depth, set index
@@ -214,6 +230,8 @@ def las_to_dataframe(las: lasio.LASFile) -> pd.DataFrame:
 
 def apply_dataframe_edits(las: lasio.LASFile, edited_df: pd.DataFrame) -> None:
     """Apply edited data back to las object preserving column order and index."""
+    if not is_valid_las(las):
+        raise ValueError("No valid LAS object loaded.")
     # Ensure the index is part of data matrix as the first column if original had it that way
     # Rebuild matrix according to las.curves order
     df = edited_df.copy()
@@ -280,7 +298,7 @@ with st.sidebar:
 las: Optional[lasio.LASFile] = st.session_state.get("las")
 
 # Strict guard to prevent None access
-if not isinstance(las, lasio.LASFile):
+if not is_valid_las(las):
     st.info("Load a LAS file from the sidebar to begin. Upload a file or enter a path and click Load.")
     st.stop()
 
@@ -297,9 +315,12 @@ with overview_tab:
     step = getattr(las, "step", None)
 
     cols = st.columns(3)
-    cols[0].metric("Curves", f"{len(las.curves)}")
-    cols[1].metric("Params", f"{len(las.params)}")
-    cols[2].metric("Well Items", f"{len(las.well)}")
+    curves_count = len(las.curves) if getattr(las, "curves", None) is not None else 0
+    params_count = len(getattr(las, "params", []) or [])
+    well_count = len(getattr(las, "well", []) or [])
+    cols[0].metric("Curves", f"{curves_count}")
+    cols[1].metric("Params", f"{params_count}")
+    cols[2].metric("Well Items", f"{well_count}")
 
     st.markdown("---")
     version_val = ""
