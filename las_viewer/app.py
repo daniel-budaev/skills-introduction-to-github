@@ -29,23 +29,39 @@ def read_las_from_bytes(file_bytes_or_text) -> lasio.LASFile:
     """Read LAS from either bytes or string content into an in-memory buffer.
 
     Accepts: bytes, str, or a file-like object with .read().
+    Tries binary read first; on failure, decodes to text and retries.
     """
     # If a file-like was passed, read its content
     if hasattr(file_bytes_or_text, "read") and not isinstance(file_bytes_or_text, (bytes, str)):
-        file_bytes_or_text = file_bytes_or_text.read()
-
-    if isinstance(file_bytes_or_text, bytes):
-        buffer = io.BytesIO(file_bytes_or_text)
-    elif isinstance(file_bytes_or_text, str):
-        buffer = io.StringIO(file_bytes_or_text)
-    else:
-        # Attempt graceful conversion
         try:
-            buffer = io.BytesIO(bytes(file_bytes_or_text))
+            file_bytes_or_text = file_bytes_or_text.read()
         except Exception as exc:
-            raise TypeError("Unsupported content type for LAS reader; expected bytes or str") from exc
+            raise TypeError("Failed to read from file-like object") from exc
 
-    return lasio.read(buffer)
+    # Case: bytes
+    if isinstance(file_bytes_or_text, (bytes, bytearray, memoryview)):
+        data_bytes = bytes(file_bytes_or_text)
+        # Try binary first
+        try:
+            return lasio.read(io.BytesIO(data_bytes))
+        except Exception:
+            # Fallback: decode to text (utf-8 then latin-1)
+            try:
+                text = data_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                text = data_bytes.decode("latin-1", errors="replace")
+            return lasio.read(io.StringIO(text))
+
+    # Case: text
+    if isinstance(file_bytes_or_text, str):
+        return lasio.read(io.StringIO(file_bytes_or_text))
+
+    # As a last resort, attempt to coerce to bytes then retry
+    try:
+        coerced = bytes(file_bytes_or_text)
+        return lasio.read(io.BytesIO(coerced))
+    except Exception as exc:
+        raise TypeError("Unsupported content type for LAS reader; expected bytes or str") from exc
 
 
 def get_depth_info(las: Optional[lasio.LASFile]) -> Tuple[Optional[str], Optional[str]]:
