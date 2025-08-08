@@ -25,8 +25,26 @@ def read_las_from_path(path: str) -> lasio.LASFile:
     return lasio.read(path)
 
 
-def read_las_from_bytes(file_bytes: bytes) -> lasio.LASFile:
-    buffer = io.BytesIO(file_bytes)
+def read_las_from_bytes(file_bytes_or_text) -> lasio.LASFile:
+    """Read LAS from either bytes or string content into an in-memory buffer.
+
+    Accepts: bytes, str, or a file-like object with .read().
+    """
+    # If a file-like was passed, read its content
+    if hasattr(file_bytes_or_text, "read") and not isinstance(file_bytes_or_text, (bytes, str)):
+        file_bytes_or_text = file_bytes_or_text.read()
+
+    if isinstance(file_bytes_or_text, bytes):
+        buffer = io.BytesIO(file_bytes_or_text)
+    elif isinstance(file_bytes_or_text, str):
+        buffer = io.StringIO(file_bytes_or_text)
+    else:
+        # Attempt graceful conversion
+        try:
+            buffer = io.BytesIO(bytes(file_bytes_or_text))
+        except Exception as exc:
+            raise TypeError("Unsupported content type for LAS reader; expected bytes or str") from exc
+
     return lasio.read(buffer)
 
 
