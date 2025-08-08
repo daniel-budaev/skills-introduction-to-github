@@ -256,24 +256,32 @@ with st.sidebar:
     if "las" not in st.session_state:
         st.session_state.las = None
         st.session_state.source_path = None
+        st.session_state._uploaded_name = None
 
-    if load_button:
+    # Auto-load uploaded file if present
+    if file_uploader is not None:
         try:
-            if file_uploader is not None:
+            if st.session_state.get("_uploaded_name") != file_uploader.name:
                 st.session_state.las = read_las_from_bytes(file_uploader.getvalue())
                 st.session_state.source_path = file_uploader.name
-            elif path_input.strip():
-                st.session_state.las = read_las_from_path(path_input.strip())
-                st.session_state.source_path = path_input.strip()
-            else:
-                st.warning("Please upload a file or provide a path.")
+                st.session_state._uploaded_name = file_uploader.name
         except Exception as e:
-            st.error(f"Failed to load LAS file: {e}")
+            st.error(f"Failed to load uploaded LAS file: {e}")
+
+    # Load from path when button pressed
+    if load_button and path_input.strip():
+        try:
+            st.session_state.las = read_las_from_path(path_input.strip())
+            st.session_state.source_path = path_input.strip()
+            st.session_state._uploaded_name = None
+        except Exception as e:
+            st.error(f"Failed to load LAS file from path: {e}")
 
 las: Optional[lasio.LASFile] = st.session_state.get("las")
 
-if las is None:
-    st.info("Load a LAS file from the sidebar to begin.")
+# Strict guard to prevent None access
+if not isinstance(las, lasio.LASFile):
+    st.info("Load a LAS file from the sidebar to begin. Upload a file or enter a path and click Load.")
     st.stop()
 
 # Tabs
